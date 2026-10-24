@@ -1,0 +1,5 @@
+build/
+site/
+history.json
+history.antes.json
+__pycache__/

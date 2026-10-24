@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Painel de acessos</title>
+<style>
+:root {
+  color-scheme: light;
+  --pagina: #f4f7f8; --superficie: #fcfdfd; --superficie-2: #eef4f6;
+  --tinta: #0f1d22; --tinta-2: #475a61; --tinta-muda: #7c8c92;
+  --grade: #e2eaed; --eixo: #c6d3d8; --borda: rgba(10, 50, 65, 0.10);
+  --marca: #0e6e85; --marca-forte: #0a5466; --marca-suave: #dcedf2;
+  --sombra: 0 1px 2px rgba(10, 40, 50, 0.05), 0 8px 24px -16px rgba(10, 40, 50, 0.18);
+  --raio: 14px;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --pagina: #0b1114; --superficie: #151b1e; --superficie-2: #1c2428;
+  --tinta: #ecf3f5; --tinta-2: #b5c6cb; --tinta-muda: #82959b;
+  --grade: #253035; --eixo: #36444a; --borda: rgba(200, 235, 245, 0.09);
+  --marca: #1689a6; --marca-forte: #5fc3dc; --marca-suave: #123540;
+  --sombra: none;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--pagina); color: var(--tinta); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1180px; margin: 0 auto; padding: 28px clamp(16px, 4vw, 40px) 48px; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 22px; }
+h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+.atualizado { color: var(--tinta-muda); font-size: 13px; margin: 2px 0 0; }
+.acoes { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+.periodo { display: inline-flex; background: var(--superficie-2); border-radius: 999px; padding: 3px; }
+.periodo button, .tema { border: 0; background: none; color: var(--tinta-2); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+.periodo button[aria-pressed="true"] { background: var(--superficie); color: var(--tinta); box-shadow: var(--sombra); }
+.tema { border: 1px solid var(--borda); }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.cartao { background: var(--superficie); border: 1px solid var(--borda); border-radius: var(--raio); box-shadow: var(--sombra); padding: 18px 20px; min-width: 0; }
+.kpi span { color: var(--tinta-2); font-size: 13px; font-weight: 600; }
+.kpi strong { display: block; font-size: 30px; line-height: 1.2; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi small { color: var(--tinta-muda); font-size: 12px; }
+.grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.largo { grid-column: 1 / -1; }
+h2 { font-size: 15px; margin: 0 0 2px; }
+.sub { color: var(--tinta-muda); font-size: 12px; margin: 0 0 8px; }
+.grafico { height: 280px; }
+.tabela { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { position: sticky; top: 0; background: var(--superficie); text-align: left; color: var(--tinta-2); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--eixo); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--grade); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.origem { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.vazio { color: var(--tinta-muda); padding: 24px 0; text-align: center; }
+@media (max-width: 760px) { .grade { grid-template-columns: minmax(0, 1fr); } .acoes { margin-left: 0; } }
+</style>
+<script>try { if (localStorage.getItem('tema-painel-acessos') === 'dark') document.documentElement.dataset.theme = 'dark'; } catch (e) {}</script>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Painel de acessos</h1>
+      <p class="atualizado" id="atualizado"></p>
+    </div>
+    <div class="acoes">
+      <div class="periodo" id="periodo">
+        <button type="button" data-dias="7">7 dias</button>
+        <button type="button" data-dias="30" aria-pressed="true">30 dias</button>
+        <button type="button" data-dias="0">Tudo</button>
+      </div>
+      <button type="button" class="tema" id="tema">Tema escuro</button>
+    </div>
+  </header>
+
+  <section class="kpis">
+    <div class="cartao kpi"><span>Acessos às páginas de exemplo</span><strong id="k-acessos">0</strong><small id="k-acessos-sub"></small></div>
+    <div class="cartao kpi"><span>Visitas ao perfil do GitHub</span><strong id="k-perfil">0</strong><small>número aproximado</small></div>
+    <div class="cartao kpi"><span>Visitas aos repositórios</span><strong id="k-repos">0</strong><small id="k-repos-sub"></small></div>
+  </section>
+
+  <section class="grade">
+    <div class="cartao largo"><h2>Acessos por dia</h2><p class="sub">Páginas de exemplo e perfil, horário de Brasília</p><div class="grafico" id="g-dia"></div></div>
+    <div class="cartao"><h2>Acessos por página</h2><p class="sub">No período escolhido</p><div class="grafico" id="g-pagina"></div></div>
+    <div class="cartao"><h2>Horário dos acessos</h2><p class="sub">Soma por hora do dia, horário de Brasília</p><div class="grafico" id="g-hora"></div></div>
+  </section>
+
+  <section class="grade">
+    <div class="cartao largo">
+      <h2>Cada acesso</h2><p class="sub">Mais recentes primeiro</p>
+      <div class="tabela"><table>
+        <thead><tr><th>Data</th><th>Hora</th><th>Página</th><th>Veio de</th><th>Local</th><th>Navegador</th><th>Sistema</th></tr></thead>
+        <tbody id="t-acessos"></tbody>
+      </table></div>
+    </div>
+    <div class="cartao largo">
+      <h2>Repositórios no GitHub</h2><p class="sub">O GitHub informa só por dia, sem horário</p>
+      <div class="tabela"><table>
+        <thead><tr><th>Repositório</th><th class="num">Visitas</th><th class="num">Visitantes únicos (soma diária)</th><th>Última visita</th></tr></thead>
+        <tbody id="t-repos"></tbody>
+      </table></div>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var DADOS = /*DADOS*/null;
+
+  var NOMES = {
+    '/landing-page-demo/': 'Consultório',
+    '/sales-dashboard-demo/': 'Dashboard de vendas',
+    '/logistics-dashboard-demo/': 'Dashboard de logística',
+    '/bakery-landing-demo/': 'Confeitaria',
+    '/github-profile': 'Perfil do GitHub',
+  };
+  function nomePagina(p) { return NOMES[p] || p; }
+
+  var fuso = 'America/Sao_Paulo';
+  var fData = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, day: '2-digit', month: '2-digit', year: 'numeric' });
+  var fHora = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', minute: '2-digit' });
+  var fDia = new Intl.DateTimeFormat('en-CA', { timeZone: fuso, year: 'numeric', month: '2-digit', day: '2-digit' });
+  var fH = new Intl.DateTimeFormat('pt-BR', { timeZone: fuso, hour: '2-digit', hourCycle: 'h23' });
+  var num = new Intl.NumberFormat('pt-BR');
+
+  var acessos = DADOS.hits.map(function (a) {
+    var d = new Date(a.t);
+    return { d: d, dia: fDia.format(d), hora: +fH.format(d), p: a.p, r: a.r, loc: a.loc, nav: a.nav, so: a.so, s: a.s };
+  });
+
+  document.getElementById('atualizado').textContent =
+    'Atualizado em ' + fData.format(new Date(DADOS.atualizado)) + ' às ' + fHora.format(new Date(DADOS.atualizado));
+
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  var graficos = {};
+  function grafico(id) {
+    if (graficos[id]) graficos[id].dispose();
+    graficos[id] = echarts.init(document.getElementById(id), null, { renderer: 'svg' });
+    return graficos[id];
+  }
+  window.addEventListener('resize', function () { Object.keys(graficos).forEach(function (k) { graficos[k].resize(); }); });
+
+  function eixos() {
+    return {
+      grid: { left: 8, right: 16, top: 12, bottom: 4, containLabel: true },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: css('--marca-suave'), opacity: 0.5 } },
+        backgroundColor: css('--superficie'), borderColor: css('--eixo'), textStyle: { color: css('--tinta'), fontSize: 13 } },
+      axisLabel: { color: css('--tinta-muda'), fontSize: 11 },
+    };
+  }
+  function barra(cor) { return { color: cor, borderRadius: [4, 4, 0, 0] }; }
+
+  var dias = 30;
+  function diaInicio() {
+    if (!dias) return '';
+    var d = new Date(Date.now() - (dias - 1) * 864e5);
+    return fDia.format(d);
+  }
+  function listaDias(inicio) {
+    var fim = fDia.format(new Date()), lista = [];
+    var d = new Date(inicio + 'T12:00:00Z');
+    while (fDia.format(d) <= fim) { lista.push(fDia.format(d)); d = new Date(d.getTime() + 864e5); }
+    return lista;
+  }
+  function rotuloDia(s) { return s.slice(8, 10) + '/' + s.slice(5, 7); }
+
+  function render() {
+    var inicio = diaInicio();
+    var noPeriodo = acessos.filter(function (a) { return a.dia >= inicio; });
+    var demos = noPeriodo.filter(function (a) { return a.p !== '/github-profile'; });
+    var perfil = noPeriodo.length - demos.length;
+    var sessoes = {};
+    demos.forEach(function (a) { if (a.s) sessoes[a.s] = 1; });
+
+    document.getElementById('k-acessos').textContent = num.format(demos.length);
+    document.getElementById('k-acessos-sub').textContent = num.format(Object.keys(sessoes).length) + ' visitantes únicos';
+    document.getElementById('k-perfil').textContent = num.format(perfil);
+
+    // Repositórios: soma por dia dentro do período.
+    var totalRepos = 0, linhasRepos = [];
+    Object.keys(DADOS.repos).forEach(function (nome) {
+      var v = 0, u = 0, ultimo = '';
+      Object.keys(DADOS.repos[nome]).forEach(function (dia) {
+        if (dia < inicio) return;
+        var x = DADOS.repos[nome][dia];
+        if (!x[0]) return;
+        v += x[0]; u += x[1]; if (dia > ultimo) ultimo = dia;
+      });
+      totalRepos += v;
+      if (v) linhasRepos.push({ nome: nome, v: v, u: u, ultimo: ultimo });
+    });
+    linhasRepos.sort(function (a, b) { return b.v - a.v; });
+    document.getElementById('k-repos').textContent = num.format(totalRepos);
+    document.getElementById('k-repos-sub').textContent = linhasRepos.length + (linhasRepos.length === 1 ? ' repositório visitado' : ' repositórios visitados');
+
+    var tb = document.getElementById('t-repos');
+    tb.textContent = '';
+    if (!linhasRepos.length) tb.innerHTML = '<tr><td colspan="4" class="vazio">Nenhuma visita no período.</td></tr>';
+    linhasRepos.forEach(function (r) {
+      var tr = document.createElement('tr');
+      [r.nome, num.format(r.v), num.format(r.u), rotuloDia(r.ultimo) + '/' + r.ultimo.slice(0, 4)].forEach(function (t, i) {
+        var td = document.createElement('td'); td.textContent = t; if (i === 1 || i === 2) td.className = 'num'; tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+
+    // Por dia
+    var primeiro = inicio || (acessos.length ? acessos[0].dia : fDia.format(new Date()));
+    var eixoDias = listaDias(primeiro);
+    var porDia = {};
+    noPeriodo.forEach(function (a) { porDia[a.dia] = (porDia[a.dia] || 0) + 1; });
+    var base = eixos();
+    grafico('g-dia').setOption({
+      grid: base.grid, tooltip: base.tooltip,
+      xAxis: { type: 'category', data: eixoDias.map(rotuloDia), axisLine: { lineStyle: { color: css('--eixo') } }, axisTick: { show: false }, axisLabel: base.axisLabel },
+      yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: css('--grade') } }, axisLabel: base.axisLabel },
+      series: [{ name: 'Acessos', type: 'bar', barMaxWidth: 22, data: eixoDias.map(function (d) { return porDia[d] || 0; }),
+        itemStyle: barra(css('--marca')), emphasis: { itemStyle: { color: css('--marca-forte') } } }],
+    });
+
+    // Por página
+    var porPagina = {};
+    noPeriodo.forEach(function (a) { porPagina[a.p] = (porPagina[a.p] || 0) + 1; });
+    var paginas = Object.keys(porPagina).sort(function (a, b) { return porPagina[a] - porPagina[b]; });
+    grafico('g-pagina').setOption({
+      grid: { left: 8, right: 40, top: 4, bottom: 4, containLabel: true }, tooltip: base.tooltip,
+      xAxis: { type: 'value', show: false },
+      yAxis: { type: 'category', data: paginas.map(nomePagina), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: css('--tinta-2'), fontSize: 12 } },
+      series: [{ name: 'Acessos', type: 'bar', barMaxWidth: 20, data: paginas.map(function (p) { return porPagina[p]; }),
+        itemStyle: { color: css('--marca'), borderRadius: [0, 4, 4, 0] }, emphasis: { itemStyle: { color: css('--marca-forte') } },
+        label: { show: true, position: 'right', color: css('--tinta-2'), fontSize: 12 } }],
+    });
+
+    // Por hora
+    var porHora = new Array(24).fill(0);
+    noPeriodo.forEach(function (a) { porHora[a.hora]++; });
+    grafico('g-hora').setOption({
+      grid: base.grid, tooltip: base.tooltip,
+      xAxis: { type: 'category', data: porHora.map(function (_, h) { return h + 'h'; }), axisLine: { lineStyle: { color: css('--eixo') } }, axisTick: { show: false }, axisLabel: base.axisLabel },
+      yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: css('--grade') } }, axisLabel: base.axisLabel },
+      series: [{ name: 'Acessos', type: 'bar', barMaxWidth: 18, data: porHora, itemStyle: barra(css('--marca')), emphasis: { itemStyle: { color: css('--marca-forte') } } }],
+    });
+
+    // Cada acesso
+    var corpo = document.getElementById('t-acessos');
+    corpo.textContent = '';
+    var recentes = noPeriodo.slice().reverse().slice(0, 500);
+    if (!recentes.length) corpo.innerHTML = '<tr><td colspan="7" class="vazio">Nenhum acesso no período.</td></tr>';
+    recentes.forEach(function (a) {
+      var tr = document.createElement('tr');
+      [fData.format(a.d), fHora.format(a.d), nomePagina(a.p), a.r || 'Acesso direto', a.loc || '—', a.nav || '—', a.so || '—'].forEach(function (t, i) {
+        var td = document.createElement('td'); td.textContent = t; if (i === 3) { td.className = 'origem'; td.title = t; } tr.appendChild(td);
+      });
+      corpo.appendChild(tr);
+    });
+  }
+
+  document.getElementById('periodo').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    dias = +b.dataset.dias;
+    this.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    render();
+  });
+
+  var botaoTema = document.getElementById('tema');
+  function rotuloTema() { botaoTema.textContent = document.documentElement.dataset.theme === 'dark' ? 'Tema claro' : 'Tema escuro'; }
+  botaoTema.addEventListener('click', function () {
+    var escuro = document.documentElement.dataset.theme !== 'dark';
+    if (escuro) document.documentElement.dataset.theme = 'dark'; else delete document.documentElement.dataset.theme;
+    try { localStorage.setItem('tema-painel-acessos', escuro ? 'dark' : 'light'); } catch (e) {}
+    rotuloTema(); render();
+  });
+  rotuloTema();
+  render();
+})();
+</script>
+</body>
+</html>

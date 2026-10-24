@@ -1,0 +1,74 @@
+name: Atualizar painel
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: painel
+  cancel-in-progress: false
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.publicar.outputs.page_url }}
+    env:
+      SENHA: ${{ secrets.DASHBOARD_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # O histórico fica no repositório, criptografado com a mesma senha do painel.
+      - name: Abrir histórico
+        run: |
+          if [ -f history.enc ]; then
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in history.enc -out history.json -pass env:SENHA
+          else
+            echo '{}' > history.json
+          fi
+          cp history.json history.antes.json
+
+      - name: Coletar acessos
+        env:
+          GOATCOUNTER_TOKEN: ${{ secrets.GOATCOUNTER_TOKEN }}
+          GH_TRAFFIC_TOKEN: ${{ secrets.GH_TRAFFIC_TOKEN }}
+        run: python3 scripts/collect.py
+
+      - name: Guardar histórico
+        run: |
+          if cmp -s history.json history.antes.json; then exit 0; fi
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in history.json -out history.enc -pass env:SENHA
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add history.enc
+          git commit -m "chore: update history"
+          git push
+
+      - name: Pôr senha na página
+        run: |
+          npx --yes staticrypt@3.5.4 build/index.html -p "$SENHA" --short -d site --remember 30 \
+            --template-title "Painel de acessos" \
+            --template-instructions "" \
+            --template-placeholder "Senha" \
+            --template-button "Entrar" \
+            --template-remember "Lembrar por 30 dias" \
+            --template-error "Senha incorreta" \
+            --template-color-primary "#0e6e85" \
+            --template-color-secondary "#f4f7f8"
+          touch site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: publicar
+        uses: actions/deploy-pages@v4
