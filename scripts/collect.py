@@ -1,9 +1,9 @@
 """Coleta os acessos e monta a página do painel.
 
 Lê history.json (o histórico já aberto pelo workflow), busca os dados novos
-e grava de volta. O GoatCounter guarda todos os acessos às páginas; o GitHub
-só guarda 14 dias de visitas aos repositórios, então o histórico acumula
-esses dias a cada execução.
+e grava de volta. Do GoatCounter vêm só os acessos novos desde a última
+exportação; o GitHub só guarda 14 dias de visitas aos repositórios. O
+histórico acumula os dois a cada execução.
 
 Variáveis de ambiente:
     GOATCOUNTER_TOKEN   token da API do GoatCounter (Read statistics + Export)
@@ -38,8 +38,12 @@ def pedir(url, token, metodo="GET", corpo=None, extra=None):
         dados = json.dumps(corpo).encode()
         cabecalhos["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=dados, headers=cabecalhos, method=metodo)
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return r.read()
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read()
+    except urllib.error.HTTPError as e:
+        e.msg = f"{e.msg} em {metodo} {url.split('?')[0]}: {e.read()[:200].decode(errors='replace')}"
+        raise
 
 
 def pagina_do_caminho(caminho):
@@ -51,9 +55,10 @@ def pagina_do_caminho(caminho):
     return f"/{partes[0]}/" if partes else "/"
 
 
-def coletar_goatcounter(token):
-    """Exporta todos os acessos em CSV. A API gera o arquivo e avisa quando ficou pronto."""
-    exp = json.loads(pedir(f"{GOATCOUNTER}/export", token, "POST", {"start_from_hit_id": 0}))
+def coletar_goatcounter(token, ultimo_id):
+    """Exporta em CSV os acessos posteriores a ultimo_id. A API gera o arquivo
+    em segundo plano e só aceita uma exportação por hora."""
+    exp = json.loads(pedir(f"{GOATCOUNTER}/export", token, "POST", {"start_from_hit_id": ultimo_id}))
     for _ in range(30):
         if exp.get("finished_at"):
             break
@@ -61,6 +66,11 @@ def coletar_goatcounter(token):
         exp = json.loads(pedir(f"{GOATCOUNTER}/export/{exp['id']}", token))
     else:
         raise RuntimeError("export do GoatCounter não terminou")
+    if exp.get("error"):
+        raise RuntimeError(exp["error"])
+    # Sem acessos novos o GoatCounter não gera arquivo, e o download daria 404.
+    if not exp.get("num_rows"):
+        return [], ultimo_id
 
     bruto = pedir(f"{GOATCOUNTER}/export/{exp['id']}/download", token)
     if bruto[:2] == b"\x1f\x8b":
@@ -85,8 +95,7 @@ def coletar_goatcounter(token):
             "so": l.get("System", ""),
             "s": l.get("Session", ""),
         })
-    acessos.sort(key=lambda a: a["t"])
-    return acessos
+    return acessos, exp.get("last_hit_id") or ultimo_id
 
 
 def coletar_github(token, repos_antes):
@@ -119,9 +128,11 @@ def main():
     historico = json.loads(HISTORICO.read_text()) if HISTORICO.exists() else {}
     acessos = historico.get("hits", [])
     repos = historico.get("repos", {})
+    ultimo_id = historico.get("gc_last_hit_id", 0)
 
     try:
-        acessos = coletar_goatcounter(os.environ["GOATCOUNTER_TOKEN"])
+        novos, ultimo_id = coletar_goatcounter(os.environ["GOATCOUNTER_TOKEN"], ultimo_id)
+        acessos = sorted(acessos + novos, key=lambda a: a["t"])
     except Exception as e:  # mantém o histórico anterior e tenta de novo na próxima hora
         print(f"::warning::GoatCounter falhou: {e}")
     try:
@@ -129,7 +140,7 @@ def main():
     except Exception as e:
         print(f"::warning::GitHub falhou: {e}")
 
-    HISTORICO.write_text(json.dumps({"hits": acessos, "repos": repos}, sort_keys=True, ensure_ascii=False))
+    HISTORICO.write_text(json.dumps({"hits": acessos, "repos": repos, "gc_last_hit_id": ultimo_id}, sort_keys=True, ensure_ascii=False))
 
     dados = {"atualizado": datetime.now(timezone.utc).isoformat(timespec="seconds"),
              "hits": acessos, "repos": repos}
