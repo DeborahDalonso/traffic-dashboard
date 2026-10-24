@@ -58,7 +58,7 @@ def pagina_do_caminho(caminho):
 def coletar_goatcounter(token, ultimo_id):
     """Exporta em CSV os acessos posteriores a ultimo_id. A API gera o arquivo
     em segundo plano e só aceita uma exportação por hora."""
-    exp = json.loads(pedir(f"{GOATCOUNTER}/export", token, "POST", {"start_from_hit_id": ultimo_id}))
+    exp = json.loads(pedir(f"{GOATCOUNTER}/export", token, "POST", {"format": "csv", "start_from_hit_id": ultimo_id}))
     for _ in range(30):
         if exp.get("finished_at"):
             break
